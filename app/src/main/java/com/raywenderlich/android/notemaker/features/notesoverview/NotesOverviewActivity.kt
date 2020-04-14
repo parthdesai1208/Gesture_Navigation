@@ -96,18 +96,18 @@ class NotesOverviewActivity : AppCompatActivity(), NotesOverviewAdapter.OnNoteCl
         // Register OnApplyWindowInsetsListener
         root.setOnApplyWindowInsetsListener { _, windowInsets ->
 
-            // Update toolbar's top padding to accommodate system window top inset
+            //here we take "top" because "Title" is on Top side on portrait screen
             toolbar.updatePadding(top = windowInsets.systemWindowInsetTop + toolbar.paddingTop)
 
             val addNoteButtonMarginLayoutParam =
                 addNoteButton.layoutParams as ViewGroup.MarginLayoutParams
-            // Update "Add Note" button's bottom margin to accommodate system window bottom inset
+            //here we take "bottom" because "Add Note" is on bottom side on portrait screen
             addNoteButtonMarginLayoutParam.bottomMargin =
                 addNoteButtonMarginLayoutParam.bottomMargin + windowInsets.systemWindowInsetBottom
             addNoteButton.layoutParams = addNoteButtonMarginLayoutParam
 
-            // Update notes recyclerView's bottom padding to accommodate system window bottom inset
-            notes.updatePadding(bottom = windowInsets.systemWindowInsetBottom)
+            //here we take "bottom" because "RecyclerView"'s content might be overlapping with bottom side on portrait screen
+            notesRecyclerView.updatePadding(bottom = windowInsets.systemWindowInsetBottom)
 
             windowInsets
         }
@@ -120,18 +120,21 @@ class NotesOverviewActivity : AppCompatActivity(), NotesOverviewAdapter.OnNoteCl
 
         // Register OnApplyWindowInsetsListener
         root.setOnApplyWindowInsetsListener { _, windowInsets ->
-          toolbar.updatePadding(top = windowInsets.systemWindowInsetTop
-            ,left = windowInsets.systemWindowInsetLeft)
+
+            //here we take "top" & "left" because "Title" is on Top and bottom side on landscape screen
+            toolbar.updatePadding(
+                top = windowInsets.systemWindowInsetTop
+                , left = windowInsets.systemWindowInsetLeft
+            )
 
             val addNoteButtonMarginLayoutParam =
                 addNoteButton.layoutParams as ViewGroup.MarginLayoutParams
-            // Update "Add Note" button's bottom margin to accommodate system window bottom inset
-            addNoteButtonMarginLayoutParam.rightMargin =  windowInsets.systemWindowInsetRight + 16
-//                addNoteButtonMarginLayoutParam.rightMargin + windowInsets.systemWindowInsetRight
+            //here we take "right" because "Add Note" button is always on right side on landscape screen
+            addNoteButtonMarginLayoutParam.rightMargin = windowInsets.systemWindowInsetRight + 16
             addNoteButton.layoutParams = addNoteButtonMarginLayoutParam
 
-            // Update notes recyclerView's bottom padding to accommodate system window bottom inset
-            notes.updatePadding(
+            //here we take "right", "left" because "RecyclerView"'s content might be left/right side on landscape screen
+            notesRecyclerView.updatePadding(
                 right = windowInsets.systemWindowInsetRight,
                 left = windowInsets.systemWindowInsetLeft
             )
@@ -169,8 +172,8 @@ class NotesOverviewActivity : AppCompatActivity(), NotesOverviewAdapter.OnNoteCl
         layoutManager.orientation = RecyclerView.VERTICAL
 
         // Initialize notes recycler view
-        notes.layoutManager = layoutManager
-        notes.adapter = notesOverviewAdapter
+        notesRecyclerView.layoutManager = layoutManager
+        notesRecyclerView.adapter = notesOverviewAdapter
     }
 
     private fun initAddNoteClickListener() {

@@ -31,6 +31,7 @@ package com.raywenderlich.android.notemaker.features.savenote
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
@@ -57,255 +58,310 @@ import kotlinx.android.synthetic.main.bottom_sheet_more.*
 
 class SaveNoteActivity : AppCompatActivity(), ColorsAdapter.OnColorClickListener {
 
-  companion object {
+    companion object {
 
-    private const val EXTRA_NOTE_ID = "extra_note_id"
+        private const val EXTRA_NOTE_ID = "extra_note_id"
 
-    fun newIntent(context: Context) =
-        Intent(context, SaveNoteActivity::class.java).apply {
-          putExtra(EXTRA_NOTE_ID, INVALID_NOTE_ID)
-        }
-
-    fun newIntent(context: Context, noteId: Long) =
-        Intent(context, SaveNoteActivity::class.java).apply {
-          putExtra(EXTRA_NOTE_ID, noteId)
-        }
-  }
-
-  private val colorItemInnerMargin by lazy {
-    resources.getDimensionPixelSize(R.dimen.color_item_inner_margin)
-  }
-  private val colorItemOuterMargin by lazy {
-    resources.getDimensionPixelSize(R.dimen.color_item_outer_margin)
-  }
-
-  private lateinit var viewModel: SaveNoteViewModel
-  private lateinit var colorsAdapter: ColorsAdapter
-  private var noteId: Long = INVALID_NOTE_ID
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    setContentView(R.layout.activity_save_note)
-
-    // Request to be layout full screen
-    requestToBeLayoutFullscreen()
-
-    // Adapt view according to insets
-    adaptViewForInsets()
-
-    // Extract arguments (like note Id)
-    extractArguments()
-
-    // Initialize toolbar with the title
-    initToolbar()
-
-    // Initialize adapter and recycler view for displaying colors
-    initColors()
-
-    // Initialize OnClick listeners
-    initOnClickListener()
-
-    // Initialize view model, start observing LiveData, and request data
-    initViewModel()
-  }
-
-  private fun requestToBeLayoutFullscreen() {
-    root.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
-  }
-
-  private fun adaptViewForInsets() {
-
-    // Prepare original top padding of the toolbar
-    val toolbarOriginalTopPadding = toolbar.paddingTop
-
-    // Prepare original peek height of the bottom sheet
-    val bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
-    val bottomSheetOriginalPeekHeight = bottomSheetBehavior.peekHeight
-
-    // Prepare original bottom margin of colors recycler view
-    val colorsLayoutParams = colors.layoutParams as ViewGroup.MarginLayoutParams
-    val colorsOriginalMarginBottom = colorsLayoutParams.bottomMargin
-
-    // Register OnApplyWindowInsetsListener
-    root.setOnApplyWindowInsetsListener { _, windowInsets ->
-
-      // Update toolbar's top padding to accommodate system window top inset
-      val newToolbarTopPadding = toolbarOriginalTopPadding + windowInsets.systemWindowInsetTop
-      toolbar.updatePadding(top = newToolbarTopPadding)
-
-      // Update colors recycler view's bottom margin to accommodate system window bottom inset
-      val newColorsMarginBottom = colorsOriginalMarginBottom + windowInsets.systemWindowInsetBottom
-      colorsLayoutParams.bottomMargin = newColorsMarginBottom
-      colors.layoutParams = colorsLayoutParams
-
-      // Update bottom sheet's peek height
-      adaptBottomSheetPeekHeight(bottomSheetBehavior, bottomSheetOriginalPeekHeight, windowInsets)
-
-      // Exclude gestures on colors recycler view when bottom sheet is expanded
-      excludeGesturesForColors(bottomSheetBehavior, windowInsets)
-
-      windowInsets
-    }
-  }
-
-  private fun adaptBottomSheetPeekHeight(
-      bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>,
-      bottomSheetOriginalPeekHeight: Int,
-      windowInsets: WindowInsets
-  ) {
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-
-      // If Q, update peek height according to gesture inset bottom
-      val gestureInsets = windowInsets.systemGestureInsets
-      bottomSheetBehavior.peekHeight = bottomSheetOriginalPeekHeight + gestureInsets.bottom
-
-    } else {
-
-      // If not Q, update peek height according to system window inset bottom
-      bottomSheetBehavior.peekHeight = bottomSheetOriginalPeekHeight + windowInsets.systemWindowInsetBottom
-    }
-  }
-
-  private fun excludeGesturesForColors(
-      bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>,
-      windowInsets: WindowInsets
-  ) {
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-
-      bottomSheetBehavior.setBottomSheetCallback(object :
-          BottomSheetBehavior.BottomSheetCallback() {
-
-        override fun onSlide(bottomSheet: View, slideOffset: Float) {
-          // NO OP
-        }
-
-        override fun onStateChanged(bottomSheet: View, newState: Int) {
-
-          if (newState == STATE_EXPANDED) {
-
-            // Exclude gestures when bottom sheet is expanded
-            root.doOnLayout {
-
-              val gestureInsets = windowInsets.systemGestureInsets
-
-              // Common Rect values
-              val rectHeight = colors.height
-              val rectTop = root.bottom - rectHeight
-              val rectBottom = root.bottom
-
-              // Left Rect values
-              val leftExclusionRectLeft = 0
-              val leftExclusionRectRight = gestureInsets.left
-
-              // Right Rect values
-              val rightExclusionRectLeft = root.right - gestureInsets.right
-              val rightExclusionRectRight = root.right
-
-              // Rect for gestures on the left side of the screen
-              val leftExclusionRect = Rect(
-                  leftExclusionRectLeft,
-                  rectTop,
-                  leftExclusionRectRight,
-                  rectBottom
-              )
-
-              // Rect for gestures on the right side of the screen
-              val rightExclusionRect = Rect(
-                  rightExclusionRectLeft,
-                  rectTop,
-                  rightExclusionRectRight,
-                  rectBottom
-              )
-
-              // Add both rects and exclude gestures
-              root.systemGestureExclusionRects = listOf(leftExclusionRect, rightExclusionRect)
+        fun newIntent(context: Context) =
+            Intent(context, SaveNoteActivity::class.java).apply {
+                putExtra(EXTRA_NOTE_ID, INVALID_NOTE_ID)
             }
-          } else if (newState == STATE_COLLAPSED) {
 
-            // Remove exclusion rects when bottom sheet is collapsed
-            root.doOnLayout { root.systemGestureExclusionRects = listOf() }
-          }
-        }
-      })
+        fun newIntent(context: Context, noteId: Long) =
+            Intent(context, SaveNoteActivity::class.java).apply {
+                putExtra(EXTRA_NOTE_ID, noteId)
+            }
     }
-  }
 
-  private fun extractArguments() {
-    // Extract note Id
-    noteId = intent.getLongExtra(EXTRA_NOTE_ID, INVALID_NOTE_ID)
-  }
+    private val colorItemInnerMargin by lazy {
+        resources.getDimensionPixelSize(R.dimen.color_item_inner_margin)
+    }
+    private val colorItemOuterMargin by lazy {
+        resources.getDimensionPixelSize(R.dimen.color_item_outer_margin)
+    }
 
-  private fun initToolbar() {
-    // Set title in toolbar
-    screenTitle.setText(R.string.save_note_screen_title)
-  }
+    private lateinit var viewModel: SaveNoteViewModel
+    private lateinit var colorsAdapter: ColorsAdapter
+    private var noteId: Long = INVALID_NOTE_ID
 
-  private fun initOnClickListener() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_save_note)
 
-    // Save note when "Save Note" button clicked
-    saveChangesButton.setOnClickListener { onSaveChangesClicked() }
+        // Request to be layout full screen
+        requestToBeLayoutFullscreen()
 
-    // Delete note when "Delete" option selected
-    deleteNoteOption.setOnClickListener { viewModel.deleteNote() }
-  }
+        val orientation = resources.configuration.orientation
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            adaptViewForInsetsForLandScape()
+        } else {
+            // Adapt view according to insets
+            adaptViewForInsets()
+        }
 
-  private fun initColors() {
+        // Extract arguments (like note Id)
+        extractArguments()
 
-    // Initialize adapter
-    colorsAdapter = ColorsAdapter(layoutInflater)
-    colorsAdapter.setOnColorClickListener(this)
+        // Initialize toolbar with the title
+        initToolbar()
 
-    // Initialize layout manager
-    val linearLayoutManager = LinearLayoutManager(this)
-    linearLayoutManager.orientation = LinearLayoutManager.HORIZONTAL
+        // Initialize adapter and recycler view for displaying colors
+        initColors()
 
-    // Initialize colors recycler view
-    colors.layoutManager = linearLayoutManager
-    colors.addItemDecoration(ColorItemDecoration(colorItemOuterMargin, colorItemInnerMargin))
-    colors.adapter = colorsAdapter
-  }
+        // Initialize OnClick listeners
+        initOnClickListener()
 
-  private fun initViewModel() {
+        // Initialize view model, start observing LiveData, and request data
+        initViewModel()
+    }
 
-    // Create ViewModel
-    viewModel = ViewModelProviders.of(this).get(SaveNoteViewModel::class.java)
+    private fun adaptViewForInsetsForLandScape() {
 
-    // Observe LiveData
-    viewModel.closeScreenEvent.observe(this, Observer<Any> { finish() })
-    viewModel.viewData.observe(this, Observer { renderViewData(it) })
-    viewModel.colors.observe(this, Observer { renderColors(it) })
+        // Prepare original peek height of the bottom sheet
+        val bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
+        val bottomSheetOriginalPeekHeight = bottomSheetBehavior.peekHeight
 
-    // Initialize fetching of the ViewData and colors
-    viewModel.fetchViewData(noteId)
-    viewModel.fetchColors()
-  }
+        // Prepare original bottom margin of colors recycler view
+        val colorsLayoutParams = colors.layoutParams as ViewGroup.MarginLayoutParams
 
-  private fun renderViewData(viewData: SaveNoteViewData) = with(viewData) {
+        // Register OnApplyWindowInsetsListener
+        root.setOnApplyWindowInsetsListener { _, windowInsets ->
 
-    // Render note content
-    titleEditText.setText(title)
-    noteEditText.setText(note)
+            //here we take "top" & "left" because "Title" is on Top and bottom side on landscape screen
+            toolbar.updatePadding(
+                top = windowInsets.systemWindowInsetTop
+                , left = windowInsets.systemWindowInsetLeft
+                , right = windowInsets.systemWindowInsetRight
+            )
 
-    // Render note color background
-    noteContainer.setBackgroundColor(android.graphics.Color.parseColor(viewData.noteColor.hex))
-  }
+            titleEditText.updatePadding(left = windowInsets.systemWindowInsetLeft + 16)
+            noteEditText.updatePadding(left = windowInsets.systemWindowInsetLeft + 16)
+            deleteNoteOption.updatePadding(left = windowInsets.systemWindowInsetLeft)
+            //txt_delete.updatePadding(left = windowInsets.systemWindowInsetLeft)
 
-  private fun renderColors(colors: List<Color>) {
-    colorsAdapter.setData(colors)
-  }
+            // Update colors recycler view's bottom margin to accommodate system window bottom inset
+            colorsLayoutParams.leftMargin = windowInsets.systemWindowInsetLeft
+            colorsLayoutParams.rightMargin = windowInsets.systemWindowInsetRight
+            colors.layoutParams = colorsLayoutParams
 
-  override fun onColorClicked(color: Color) {
-    val title = titleEditText.text.toString()
-    val note = noteEditText.text.toString()
-    viewModel.colorNote(title, note, color)
-  }
+            // Update bottom sheet's peek height
+            adaptBottomSheetPeekHeight(
+                bottomSheetBehavior,
+                bottomSheetOriginalPeekHeight,
+                windowInsets
+            )
 
-  private fun onSaveChangesClicked() {
-    val title = titleEditText.text.toString()
-    val note = noteEditText.text.toString()
-    viewModel.saveNote(title, note)
-  }
+            // Exclude gestures on colors recycler view when bottom sheet is expanded
+            excludeGesturesForColors(bottomSheetBehavior, windowInsets)
+
+            windowInsets
+        }
+    }
+
+    private fun requestToBeLayoutFullscreen() {
+        root.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
+    }
+
+    private fun adaptViewForInsets() {
+
+        // Prepare original top padding of the toolbar
+        val toolbarOriginalTopPadding = toolbar.paddingTop
+
+        // Prepare original peek height of the bottom sheet
+        val bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
+        val bottomSheetOriginalPeekHeight = bottomSheetBehavior.peekHeight
+
+        // Prepare original bottom margin of colors recycler view
+        val colorsLayoutParams = colors.layoutParams as ViewGroup.MarginLayoutParams
+        val colorsOriginalMarginBottom = colorsLayoutParams.bottomMargin
+
+        // Register OnApplyWindowInsetsListener
+        root.setOnApplyWindowInsetsListener { _, windowInsets ->
+
+            // Update toolbar's top padding to accommodate system window top inset
+            val newToolbarTopPadding = toolbarOriginalTopPadding + windowInsets.systemWindowInsetTop
+            toolbar.updatePadding(top = newToolbarTopPadding)
+
+            // Update colors recycler view's bottom margin to accommodate system window bottom inset
+            val newColorsMarginBottom =
+                colorsOriginalMarginBottom + windowInsets.systemWindowInsetBottom
+            colorsLayoutParams.bottomMargin = newColorsMarginBottom
+            colors.layoutParams = colorsLayoutParams
+
+            // Update bottom sheet's peek height
+            adaptBottomSheetPeekHeight(
+                bottomSheetBehavior,
+                bottomSheetOriginalPeekHeight,
+                windowInsets
+            )
+
+            // Exclude gestures on colors recycler view when bottom sheet is expanded
+            excludeGesturesForColors(bottomSheetBehavior, windowInsets)
+
+            windowInsets
+        }
+    }
+
+    private fun adaptBottomSheetPeekHeight(
+        bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>,
+        bottomSheetOriginalPeekHeight: Int,
+        windowInsets: WindowInsets
+    ) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+
+            // If Q, update peek height according to gesture inset bottom
+            val gestureInsets = windowInsets.systemGestureInsets
+            bottomSheetBehavior.peekHeight = bottomSheetOriginalPeekHeight + gestureInsets.bottom
+
+        } else {
+
+            // If not Q, update peek height according to system window inset bottom
+            bottomSheetBehavior.peekHeight =
+                bottomSheetOriginalPeekHeight + windowInsets.systemWindowInsetBottom
+        }
+    }
+
+    private fun excludeGesturesForColors(
+        bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>,
+        windowInsets: WindowInsets
+    ) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+
+            bottomSheetBehavior.setBottomSheetCallback(object :
+                BottomSheetBehavior.BottomSheetCallback() {
+
+                override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                    // NO OP
+                }
+
+                override fun onStateChanged(bottomSheet: View, newState: Int) {
+
+                    if (newState == STATE_EXPANDED) {
+
+                        // Exclude gestures when bottom sheet is expanded
+                        root.doOnLayout {
+
+                            val gestureInsets = windowInsets.systemGestureInsets
+
+                            // Common Rect values
+                            val rectHeight = colors.height
+                            val rectTop = root.bottom - rectHeight
+                            val rectBottom = root.bottom
+
+                            // Left Rect values
+                            val leftExclusionRectLeft = 0
+                            val leftExclusionRectRight = gestureInsets.left
+
+                            // Right Rect values
+                            val rightExclusionRectLeft = root.right - gestureInsets.right
+                            val rightExclusionRectRight = root.right
+
+                            // Rect for gestures on the left side of the screen
+                            val leftExclusionRect = Rect(
+                                leftExclusionRectLeft,
+                                rectTop,
+                                leftExclusionRectRight,
+                                rectBottom
+                            )
+
+                            // Rect for gestures on the right side of the screen
+                            val rightExclusionRect = Rect(
+                                rightExclusionRectLeft,
+                                rectTop,
+                                rightExclusionRectRight,
+                                rectBottom
+                            )
+
+                            // Add both rects and exclude gestures
+                            root.systemGestureExclusionRects =
+                                listOf(leftExclusionRect, rightExclusionRect)
+                        }
+                    } else if (newState == STATE_COLLAPSED) {
+
+                        // Remove exclusion rects when bottom sheet is collapsed
+                        root.doOnLayout { root.systemGestureExclusionRects = listOf() }
+                    }
+                }
+            })
+        }
+    }
+
+    private fun extractArguments() {
+        // Extract note Id
+        noteId = intent.getLongExtra(EXTRA_NOTE_ID, INVALID_NOTE_ID)
+    }
+
+    private fun initToolbar() {
+        // Set title in toolbar
+        screenTitle.setText(R.string.save_note_screen_title)
+    }
+
+    private fun initOnClickListener() {
+
+        // Save note when "Save Note" button clicked
+        saveChangesButton.setOnClickListener { onSaveChangesClicked() }
+
+        // Delete note when "Delete" option selected
+        deleteNoteOption.setOnClickListener { viewModel.deleteNote() }
+    }
+
+    private fun initColors() {
+
+        // Initialize adapter
+        colorsAdapter = ColorsAdapter(layoutInflater)
+        colorsAdapter.setOnColorClickListener(this)
+
+        // Initialize layout manager
+        val linearLayoutManager = LinearLayoutManager(this)
+        linearLayoutManager.orientation = LinearLayoutManager.HORIZONTAL
+
+        // Initialize colors recycler view
+        colors.layoutManager = linearLayoutManager
+        colors.addItemDecoration(ColorItemDecoration(colorItemOuterMargin, colorItemInnerMargin))
+        colors.adapter = colorsAdapter
+    }
+
+    private fun initViewModel() {
+
+        // Create ViewModel
+        viewModel = ViewModelProviders.of(this).get(SaveNoteViewModel::class.java)
+
+        // Observe LiveData
+        viewModel.closeScreenEvent.observe(this, Observer<Any> { finish() })
+        viewModel.viewData.observe(this, Observer { renderViewData(it) })
+        viewModel.colors.observe(this, Observer { renderColors(it) })
+
+        // Initialize fetching of the ViewData and colors
+        viewModel.fetchViewData(noteId)
+        viewModel.fetchColors()
+    }
+
+    private fun renderViewData(viewData: SaveNoteViewData) = with(viewData) {
+
+        // Render note content
+        titleEditText.setText(title)
+        noteEditText.setText(note)
+
+        // Render note color background
+        noteContainer.setBackgroundColor(android.graphics.Color.parseColor(viewData.noteColor.hex))
+    }
+
+    private fun renderColors(colors: List<Color>) {
+        colorsAdapter.setData(colors)
+    }
+
+    override fun onColorClicked(color: Color) {
+        val title = titleEditText.text.toString()
+        val note = noteEditText.text.toString()
+        viewModel.colorNote(title, note, color)
+    }
+
+    private fun onSaveChangesClicked() {
+        val title = titleEditText.text.toString()
+        val note = noteEditText.text.toString()
+        viewModel.saveNote(title, note)
+    }
 }
